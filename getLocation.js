@@ -12,7 +12,7 @@ function getJSONP (url, callBack) {
   document.querySelector('body').appendChild(script)
   script.src = url + '&callback=' + name
 }
-
+// 获取定位返回type lng lat lngLat 获取地理信息type lng lat lngLat city province district addr
 var Position = {
   config: {
     key: 'EP2BZ-N2U2U-UMPV6-2Z5NP-OV2JH-E6FI2',
@@ -79,8 +79,9 @@ var Position = {
   },
   getPostionByIp: {
     'QQ': function (context, success, fail) {
-      getJSONP('//apis.map.qq.com/ws/location/v1/ip?key=' + this.config.key + '&output=jsonp', function (res) {
-        console.log(res)
+      var that = this
+      getJSONP('http://apis.map.qq.com/ws/location/v1/ip?key=' + this.config.key + '&output=jsonp', function (res) {
+        console.log(res, that)
       })
     }
   },
@@ -111,6 +112,10 @@ var Position = {
     context = context || null
     success = success || function () {}
     fail = fail || function () {}
-    this.getPostion[this.config.positionType].call(this, context, success, fail)
+    if (this.config.type === null || this.config.positionType === 'default') {
+      this.getPostion[this.config.positionType].call(this, context, success, fail)
+    } else {
+      getPlaceInfo[this.config.positionType].call(this, context, success, fail)
+    }
   }
 }
