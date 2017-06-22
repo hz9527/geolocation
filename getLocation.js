@@ -359,7 +359,12 @@ var Position = {
     },
     'BD': function (context, success, fail) {
       if (window.BMap) {
-        console.log(BMap)
+        var geolocation = new BMap.Geolocation()
+        geolocation.getCurrentPosition(function (res) {
+          console.log(res)
+        }, {
+          timeout: this.config.timeout
+        })
       } else {
         var url = '//api.map.baidu.com/getscript?v=2.0&ak=' + this.config.key + '&services=&t=20170608143204'
         setScript(url, this.getPlaceInfo.BD, this, context, success, fail)
