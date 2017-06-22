@@ -43,7 +43,7 @@ function setScript (url, fn, context) {
 var Position = {
   config: {
     key: 'EP2BZ-N2U2U-UMPV6-2Z5NP-OV2JH-E6FI2',
-    app: 'getPostion',
+    app: 'getPosition',
     positionType: 'default', // default map
     mapType: 'QQ',
     type: 3, // 1 position 2 place 3 posParsePlace
@@ -55,7 +55,7 @@ var Position = {
   setConfig: function (options) {
     if (options && options.constructor === Object) {
       var needKey = false
-      if (config.key) {
+      if (options.key) {
         this.config.key = options.key
         needKey = true
       }
@@ -77,7 +77,7 @@ var Position = {
         }
         this.config.mapType = options.mapType
       }
-      if (invalidType === -1) {
+      if (needKey === -1) {
         throw new Error('key is necessary')
       }
       if (options.type) {
@@ -93,14 +93,14 @@ var Position = {
       if (options.timeout > 0) {
         this.config.timeout = options.timeout
       }
-      this.config.app = options.app || 'getPostion'
+      this.config.app = options.app || 'getPosition'
     }
     if (this.config.positionType === 'default' && location.protocol !== 'https:') {
       console.warn('http can`t use geolocation')
     }
   },
   dealPosition: {
-    default: function (pos) {
+    'default': function (pos) {
       return {
         lat: pos.latitude,
         lng: pos.longitude,
@@ -109,7 +109,7 @@ var Position = {
         type: 'default'
       }
     },
-    QQ: function (pos) {
+    'QQ': function (pos) {
       return {
         lat: pos.location.lat,
         lng: pos.location.lng,
@@ -117,6 +117,54 @@ var Position = {
         info: pos.ad_info,
         type: 'IP'
       }
+    },
+    'BD': function (pos) {
+      return {
+        lat: pos.point.y,
+        lng: pos.point.x,
+        latLng: pos.point.y + ',' + pos.point.x,
+        info: {
+          address: pos.address,
+          nation: '',
+          province: pos.address_detail.province,
+          city: pos.address_detail.city,
+          district: pos.address_detail.district
+        },
+        type: 'IP'
+      }
+    },
+    'GD': function (res) {
+      return {}
+    },
+    'SG': function (res) {
+      return {}
+    }
+  },
+  dealInfoByPos: {
+    QQ: function (info, pos) {
+      return {
+        positionType: pos.type,
+        lat: pos.lat,
+        lng: pos.lng,
+        latLng: pos.latLng,
+        type: 'QQ',
+        info: {
+          address: info.address,
+          nation: info.ad_info.nation,
+          province: info.ad_info.province,
+          city: info.ad_info.city,
+          district: info.ad_info.district
+        }
+      }
+    },
+    'BD': function (res) {
+      return {}
+    },
+    'GD': function (res) {
+      return {}
+    },
+    'SG': function (res) {
+      return {}
     }
   },
   dealPlaceInfo: {
@@ -134,6 +182,15 @@ var Position = {
         },
         type: 'QQ'
       }
+    },
+    'BD': function (res) {
+      return {}
+    },
+    'GD': function (res) {
+      return {}
+    },
+    'SG': function (res) {
+      return {}
     }
   },
   dealFailMsg: {
@@ -146,8 +203,21 @@ var Position = {
         return '请求参数错误'
       } else if (res.status === 110) {
         return '无权限'
+      } else if (res.code === -1) {
+        msg = '请求超时'
+      } else if (res.code === -2) {
+        msg = '请求错误'
       }
       return ''
+    },
+    'BD': function (res) {
+      return {}
+    },
+    'GD': function (res) {
+      return {}
+    },
+    'SG': function (res) {
+      return {}
     }
   },
   posNext: function (context, success, fail, pos) {
@@ -157,14 +227,14 @@ var Position = {
       this.getInfoByPos[this.config.mapType].call(this, pos, context, success, fail)
     }
   },
-  getPostion: {
+  getPosition: {
     'default': function (context, success, fail) {
       if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition( res => {
           this.posNext(context, success, fail, this.dealPosition.default(res.coords))
         }, err => {
           if (this.config.canIp) {
-            this.getPostion[this.config.mapType].call(this, context, success, fail)
+            this.getPosition[this.config.mapType].call(this, context, success, fail)
           } else {
             var msg = err.code === 1 ? '获取地理位置权限失败' : err.code === 2 ? '获取地理位置信息失败' : '获取地理位置超时'
             fail.call(context, msg)
@@ -183,11 +253,18 @@ var Position = {
           that.posNext(context, success, fail, that.dealPosition.QQ(res.result))
         } else {
           var msg = that.dealFailMsg['QQ'](res)
-          if (res.code === -1) {
-            msg = '请求超时'
-          } else if (res.code === -2) {
-            msg = '请求错误'
-          }
+          fail.call(context, msg)
+        }
+      })
+    },
+    'BD': function (context, success, fail) {
+      var that = this
+      var url = '//api.map.baidu.com/location/ip?ak=' + this.config.key + '&coor=bd09ll&output=jsonp'
+      getJSONP(url, function (res) {
+        if (res.status === 0) {
+          that.posNext(context, success, fail, that.dealPosition.BD(res.content))
+        } else {
+          var msg = that.dealFailMsg.BD(res)
           fail.call(context, msg)
         }
       })
@@ -196,8 +273,14 @@ var Position = {
   getInfoByPos: {
     'QQ': function (pos, context, success, fail) {
       var url = '//apis.map.qq.com/ws/geocoder/v1/?location=' + pos.latLng + '&key=' + this.config.key + '&output=jsonp'
+      var that = this
       getJSONP(url, function (res) {
-        console.log(res)
+        if (res.status === 0) {
+          success.call(context, that.dealInfoByPos.QQ(res.result, pos))
+        } else {
+          var msg = that.dealFailMsg['QQ'](res)
+          fail.call(context, msg)
+        }
       })
     }
   },
@@ -209,7 +292,11 @@ var Position = {
         geolocation.getLocation(function (res) {
           success.call(context, that.dealPlaceInfo.QQ(res))
         }, function (err) {
-          console.log(err)
+          if (that.config.canIp) {
+            that.getPosition.QQ(context, success, fail)
+          } else {
+            fail(context, '请求错误')
+          }
         }, {
           timeout: this.config.timeout
         })
@@ -223,9 +310,10 @@ var Position = {
     context = context || null
     success = success || function (res) {console.log(res)}
     fail = fail || function () {}
+    this.setConfig()
     if (this.config.type === 3 || this.config.type === 1) {
       var type = this.config.positionType === 'default' ? 'default' : this.config.mapType
-      this.getPostion[type].call(this, context, success, fail)
+      this.getPosition[type].call(this, context, success, fail)
     } else {
       this.getPlaceInfo[this.config.mapType].call(this, context, success, fail)
     }
