@@ -32,9 +32,11 @@ function getJSONP (url, callBack, timeout) { // state -1 timeout -2 loaderror
 function setScript (url, fn, context) {
   var script = document.createElement('script')
   document.querySelector('body').appendChild(script)
-  var arg = [].slice.call(arguments, 3)
-  script.onload = function () {
-    fn.apply(context, arg)
+  if (typeof fn === 'function') {
+    var arg = [].slice.call(arguments, 3)
+    script.onload = function () {
+      fn.apply(context, arg)
+    }
   }
   script.src = url
 }
@@ -95,9 +97,6 @@ var Position = {
       }
       this.config.app = options.app || 'getPosition'
     }
-    if (this.config.positionType === 'default' && location.protocol !== 'https:') {
-      console.warn('http can`t use geolocation')
-    }
   },
   dealPosition: {
     'default': function (pos) {
@@ -110,6 +109,7 @@ var Position = {
       }
     },
     'QQ': function (pos) {
+      pos = pos.result
       return {
         lat: pos.location.lat,
         lng: pos.location.lng,
@@ -119,6 +119,7 @@ var Position = {
       }
     },
     'BD': function (pos) {
+      pos = pos.content
       return {
         lat: pos.point.y,
         lng: pos.point.x,
@@ -141,7 +142,8 @@ var Position = {
     }
   },
   dealInfoByPos: {
-    QQ: function (info, pos) {
+    'QQ': function (info, pos) {
+      info = info.result
       return {
         positionType: pos.type,
         lat: pos.lat,
@@ -157,8 +159,22 @@ var Position = {
         }
       }
     },
-    'BD': function (res) {
-      return {}
+    'BD': function (info, pos) {
+      info = info.result
+      return {
+        positionType: pos.type,
+        lat: pos.lat,
+        lng: pos.lng,
+        latLng: pos.latLng,
+        type: 'BD',
+        info: {
+          address: info.formatted_address,
+          nation: info.addressComponent.country,
+          province: info.addressComponent.province,
+          city: info.addressComponent.city,
+          district: info.addressComponent.district
+        }
+      }
     },
     'GD': function (res) {
       return {}
@@ -193,9 +209,11 @@ var Position = {
       return {}
     }
   },
-  dealFailMsg: {
+  dealStatus: {
     'QQ': function (res) {
-      if (res.status === 310) {
+      if (res.status === 0) {
+        return true
+      } else if (res.status === 310) {
         return '请求参数信息有误'
       } else if (res.status === 311) {
         return 'Key格式错误'
@@ -203,15 +221,32 @@ var Position = {
         return '请求参数错误'
       } else if (res.status === 110) {
         return '无权限'
-      } else if (res.code === -1) {
-        msg = '请求超时'
-      } else if (res.code === -2) {
-        msg = '请求错误'
       }
-      return ''
+      return false
     },
     'BD': function (res) {
-      return {}
+      if (res.status === 0) {
+        return true
+      } else if (res.status === 1) {
+        return '地图服务器内部错误'
+      } else if (res.status === 2) {
+        return '请求参数错误'
+      } else if (res.status === 3) {
+        return '权限校验失败'
+      } else if (res.status === 4) {
+        return '配额校验失败'
+      } else if (res.status === 5) {
+        return 'Key格式错误'
+      } else if (res.status === 101) {
+        return '服务禁用'
+      } else if (res.status === 102) {
+        return '不通过白名单或者安全码不对'
+      } else if (res.status >= 200) {
+        return '无权限'
+      } else if (res.status >= 300) {
+        return '配额错误'
+      }
+      return false
     },
     'GD': function (res) {
       return {}
@@ -220,11 +255,27 @@ var Position = {
       return {}
     }
   },
+  getIpServeUrl: {
+    'QQ': function () {
+      return '//apis.map.qq.com/ws/location/v1/ip?key=' + this.config.key + '&output=jsonp'
+    },
+    'BD': function () {
+      return '//api.map.baidu.com/location/ip?ak=' + this.config.key + '&coor=bd09ll&output=jsonp'
+    }
+  },
+  getInfoByPosServeUrl: {
+    'QQ': function (pos) {
+      return '//apis.map.qq.com/ws/geocoder/v1/?location=' + pos.latLng + '&key=' + this.config.key + '&output=jsonp'
+    },
+    'BD': function (pos) {
+      return '//api.map.baidu.com/geocoder/v2/?location=' + pos.latLng + '&output=json&pois=0&ak=' + this.config.key
+    }
+  },
   posNext: function (context, success, fail, pos) {
     if (this.config.type === 1) {
       success.call(context, pos)
     } else {
-      this.getInfoByPos[this.config.mapType].call(this, pos, context, success, fail)
+      this.getInfoByPos.call(this, pos, context, success, fail)
     }
   },
   getPosition: {
@@ -234,7 +285,7 @@ var Position = {
           this.posNext(context, success, fail, this.dealPosition.default(res.coords))
         }, err => {
           if (this.config.canIp) {
-            this.getPosition[this.config.mapType].call(this, context, success, fail)
+            this.getPosition.map.call(this, context, success, fail)
           } else {
             var msg = err.code === 1 ? '获取地理位置权限失败' : err.code === 2 ? '获取地理位置信息失败' : '获取地理位置超时'
             fail.call(context, msg)
@@ -246,43 +297,44 @@ var Position = {
         })
       }
     },
-    'QQ': function (context, success, fail) {
+    'map': function (context, success, fail) {
       var that = this
-      getJSONP('//apis.map.qq.com/ws/location/v1/ip?key=' + this.config.key + '&output=jsonp', function (res) {
-        if (res.status === 0) {
-          that.posNext(context, success, fail, that.dealPosition.QQ(res.result))
-        } else {
-          var msg = that.dealFailMsg['QQ'](res)
-          fail.call(context, msg)
-        }
-      })
-    },
-    'BD': function (context, success, fail) {
-      var that = this
-      var url = '//api.map.baidu.com/location/ip?ak=' + this.config.key + '&coor=bd09ll&output=jsonp'
+      var url = this.getIpServeUrl[that.config.mapType].call(this)
       getJSONP(url, function (res) {
-        if (res.status === 0) {
-          that.posNext(context, success, fail, that.dealPosition.BD(res.content))
+        var msg = that.dealStatus[this.config.mapType](res)
+        if (msg === true) {
+          that.posNext(context, success, fail, that.dealPosition[that.config.mapType](res))
         } else {
-          var msg = that.dealFailMsg.BD(res)
+          if (!msg) {
+            if (res.code === -1) {
+              msg = '请求超时'
+            } else if (res.code === -2) {
+              msg = '请求错误'
+            }
+          }
           fail.call(context, msg)
         }
       })
     }
   },
-  getInfoByPos: {
-    'QQ': function (pos, context, success, fail) {
-      var url = '//apis.map.qq.com/ws/geocoder/v1/?location=' + pos.latLng + '&key=' + this.config.key + '&output=jsonp'
-      var that = this
-      getJSONP(url, function (res) {
-        if (res.status === 0) {
-          success.call(context, that.dealInfoByPos.QQ(res.result, pos))
-        } else {
-          var msg = that.dealFailMsg['QQ'](res)
-          fail.call(context, msg)
+  getInfoByPos: function (pos, context, success, fail) {
+    var url = this.getInfoByPosServeUrl[this.config.mapType].call(this, pos)
+    var that = this
+    getJSONP(url, function (res) {
+      var msg = that.dealStatus[that.config.mapType](res)
+      if (msg === true) {
+        success.call(context, that.dealInfoByPos[that.config.mapType](res, pos))
+      } else {
+        if (!msg) {
+          if (res.code === -1) {
+            msg = '请求超时'
+          } else if (res.code === -2) {
+            msg = '请求错误'
+          }
         }
-      })
-    }
+        fail.call(context, msg)
+      }
+    })
   },
   getPlaceInfo: {
     'QQ': function (context, success, fail) {
@@ -293,7 +345,7 @@ var Position = {
           success.call(context, that.dealPlaceInfo.QQ(res))
         }, function (err) {
           if (that.config.canIp) {
-            that.getPosition.QQ(context, success, fail)
+            that.getPosition.map(context, success, fail)
           } else {
             fail(context, '请求错误')
           }
@@ -304,16 +356,25 @@ var Position = {
         var url = '//apis.map.qq.com/tools/geolocation/min?key=' + this.config.key + '&referer=getPosition'
         setScript(url, this.getPlaceInfo.QQ, this, context, success, fail)
       }
+    },
+    'BD': function (context, success, fail) {
+      if (window.BMap) {
+        console.log(BMap)
+      } else {
+        var url = '//api.map.baidu.com/getscript?v=2.0&ak=' + this.config.key + '&services=&t=20170608143204'
+        setScript(url, this.getPlaceInfo.BD, this, context, success, fail)
+      }
     }
   },
   getLocation: function (context, success, fail) {
     context = context || null
     success = success || function (res) {console.log(res)}
     fail = fail || function () {}
-    this.setConfig()
+    if (this.config.positionType === 'default' && location.protocol !== 'https:') {
+      console.warn('http can`t use geolocation')
+    }
     if (this.config.type === 3 || this.config.type === 1) {
-      var type = this.config.positionType === 'default' ? 'default' : this.config.mapType
-      this.getPosition[type].call(this, context, success, fail)
+      this.getPosition[this.config.positionType].call(this, context, success, fail)
     } else {
       this.getPlaceInfo[this.config.mapType].call(this, context, success, fail)
     }
