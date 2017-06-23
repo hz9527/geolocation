@@ -10,4 +10,77 @@ canIp|在h5或地图提供地理信息api失败后走ip定位（如果type为2�
 timeout|超时时间|通过多层后这个时间不准确默认5000
 
 ## 使用
-### 
+### 设置配置项
+```javascript
+Position.setConfig({
+  key: 'xxxx',
+  app: 'xxx',
+  positionType: 'default',
+  mapType: 'QQ'
+})
+```
+### 获取定位
+```JavaScript
+Position.getLocation(null, function (res) {
+  console.log(res)
+}, function (msg) {
+  console.log(msg)
+})
+```
+
+### 返回结果
+```JavaScript
+type: 1
+{
+  lat: xx,
+  lng: xxx,
+  latLng: xxx,xxxx,
+  info: null,
+  type: 'default'
+}
+
+{
+  lat: xxx,
+  lng: xxx,
+  latLng: xxx,xxx,
+  info: {
+    address: xxx,
+    nation: '',
+    province: xxx,
+    city: xxx,
+    district: xxx
+  },
+  type: 'IP'
+}
+
+type 2
+{
+  lat: xxx,
+  lng: xxx,
+  latLng: xxx,xxx,
+  info: {
+    address: xxx,
+    nation: xxx,
+    province: xxx,
+    city: xxx,
+    district: xxx
+  },
+  type: 'QQ'
+}
+
+type 3
+{
+  positionType: 'IP', // default
+  lat: xxx,
+  lng: xxx,
+  latLng: xxx,xxx,
+  type: 'QQ',
+  info: {
+    address: xxx,
+    nation: xxx,
+    province: xxx,
+    city: xxx,
+    district: xxx
+  }
+}
+```
