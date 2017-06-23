@@ -281,6 +281,9 @@ var Position = {
   getPosition: {
     'default': function (context, success, fail) {
       if ('geolocation' in navigator) {
+        if (this.config.positionType === 'default' && location.protocol !== 'https:') {
+          console.warn('http can`t use geolocation')
+        }
         navigator.geolocation.getCurrentPosition( res => {
           this.posNext(context, success, fail, this.dealPosition.default(res.coords))
         }, err => {
@@ -295,9 +298,15 @@ var Position = {
           timeout: this.config.timeout,
           maximumAge: 0
         })
+      } else {
+        if (this.config.canIp) {
+          this.getPosition.map.call(this, context, success, fail)
+        } else {
+          fail.call(context, '本设备不支持H5定位')
+        }
       }
     },
-    'map': function (context, success, fail) {
+    'map': function (context, success, fail) { // ip
       var that = this
       var url = this.getIpServeUrl[that.config.mapType].call(this)
       getJSONP(url, function (res) {
@@ -360,8 +369,19 @@ var Position = {
     'BD': function (context, success, fail) {
       if (window.BMap) {
         var geolocation = new BMap.Geolocation()
+        var that = this
         geolocation.getCurrentPosition(function (res) {
-          console.log(res)
+          if (this.getStatus() === 0) {
+            var pos = {
+              lat: res.point.lat,
+              lng: res.point.lng,
+              latLng: res.point.lat + ',' + res.point.lng,
+              type: 'map'
+            }
+            that.getInfoByPos(pos, context, success, fail)
+          } else {
+            that.getPosition.map.call(that, context, success, fail)
+          }
         }, {
           timeout: this.config.timeout
         })
@@ -375,9 +395,6 @@ var Position = {
     context = context || null
     success = success || function (res) {console.log(res)}
     fail = fail || function () {}
-    if (this.config.positionType === 'default' && location.protocol !== 'https:') {
-      console.warn('http can`t use geolocation')
-    }
     if (this.config.type === 3 || this.config.type === 1) {
       this.getPosition[this.config.positionType].call(this, context, success, fail)
     } else {
