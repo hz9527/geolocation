@@ -310,7 +310,7 @@ var Position = {
       var that = this
       var url = this.getIpServeUrl[that.config.mapType].call(this)
       getJSONP(url, function (res) {
-        var msg = that.dealStatus[this.config.mapType](res)
+        var msg = that.dealStatus[that.config.mapType](res)
         if (msg === true) {
           that.posNext(context, success, fail, that.dealPosition[that.config.mapType](res))
         } else {

@@ -3,13 +3,14 @@
   <head>
     <meta charset="utf-8">
     <title>test</title>
-    <script type="text/javascript" src='./getLocation.js'></script>
+    <script type="text/javascript" src='./getLocationBD.js'></script>
   </head>
   <body>
     <script type="text/javascript">
       'use strict';
-      Position.setConfig({key: 'dvrEqPombaLKTVpKCSIj9pyF', mapType: 'BD', type: 2})
-      Position.getLocation()
+      // Position.setConfig({key: 'dvrEqPombaLKTVpKCSIj9pyF', mapType: 'BD', type: 2})
+      // Window.getLocation.getLocation()
+      window.getLocation.init(res => console.log(res), err => console.log(err))
     </script>
   </body>
 </html>
